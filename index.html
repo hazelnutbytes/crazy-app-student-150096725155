@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#050907">
+  <meta name="description" content="A fictional secret-agent terminal toy. Every operation is a harmless simulation.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='8' fill='%23050907'/%3E%3Cpath d='M14 16h36v8H22v8h22v8H22v8h28v8H14z' fill='%2355ff79'/%3E%3C/svg%3E">
+  <title>Secret Agent Hacker Terminal — Training Simulator</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #050907;
+      --panel: rgba(8, 17, 12, .91);
+      --green: #a6ffb4;
+      --bright: #55ff79;
+      --dim: #4e9661;
+      --line: rgba(91, 255, 125, .27);
+      --amber: #e6c779;
+      --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0; min-height: 100vh; background: var(--bg); color: var(--green);
+      font-family: var(--mono); font-size: 14px; line-height: 1.55;
+      text-shadow: 0 0 8px rgba(84,255,119,.12);
+      overflow-x: hidden;
+    }
+    body::before {
+      content: ""; position: fixed; inset: 0; z-index: 0; pointer-events: none;
+      opacity: .15;
+      background: repeating-linear-gradient(0deg, transparent 0 3px, rgba(103,255,131,.08) 4px);
+    }
+    #matrix { position: fixed; inset: 0; z-index: 0; width: 100%; height: 100%; opacity: .24; pointer-events: none; }
+    .shell { position: relative; z-index: 1; width: min(1120px, calc(100% - 36px)); margin: 0 auto; padding: 24px 0 48px; }
+    .topline { display:flex; justify-content:space-between; align-items:center; gap:12px; border-bottom:1px solid var(--line); padding: 0 2px 13px; color:var(--dim); font-size:11px; letter-spacing:.09em; }
+    .credit { color:var(--green); letter-spacing:.04em; }
+    .topright { display:flex; align-items:center; gap:18px; }
+    .live-dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--bright); margin-right:8px; box-shadow:0 0 10px var(--bright); }
+    .audio-btn, .button, .small-btn {
+      font: inherit; color:var(--green); cursor:pointer; background:rgba(9,24,14,.85);
+      border:1px solid var(--line); transition:transform .18s ease, background .18s ease, border-color .18s ease, opacity .18s ease;
+    }
+    button:hover:not(:disabled) { background:rgba(43,98,54,.34); border-color:var(--bright); transform:translateY(-1px); }
+    button:focus-visible, input:focus-visible { outline:2px solid var(--amber); outline-offset:3px; }
+    button:disabled { cursor:wait; opacity:.48; }
+    .audio-btn { font-size:10px; letter-spacing:.1em; padding:7px 10px; }
+    header { padding: 42px 0 30px; }
+    .eyebrow { color:var(--amber); font-size:11px; letter-spacing:.2em; text-transform:uppercase; margin-bottom:9px; }
+    h1 { margin:0; font-size:clamp(33px, 7vw, 72px); line-height:1.03; letter-spacing:-.075em; font-weight:700; color:#c1ffd0; text-shadow:0 0 27px rgba(71,255,111,.25); }
+    h1 span { color:var(--bright); }
+    .subtitle { color:#83b78d; margin:14px 0 0; max-width:600px; font-size:13px; }
+    .notice { margin-top:23px; border-left:2px solid var(--amber); background:rgba(230,199,121,.055); padding:10px 13px; color:#d6c994; font-size:11px; max-width:750px; }
+    .notice strong { color:#f0d98f; letter-spacing:.08em; }
+    .layout { display:grid; grid-template-columns:minmax(0, 1.6fr) minmax(270px, .9fr); gap:16px; align-items:start; }
+    .panel { background:var(--panel); border:1px solid var(--line); box-shadow:0 0 26px rgba(35,255,79,.065), inset 0 0 24px rgba(20,60,29,.12); position:relative; }
+    .panel::before,.panel::after { content:""; position:absolute; width:11px;height:11px;border-color:var(--bright); border-style:solid; pointer-events:none; }
+    .panel::before { top:-1px;left:-1px;border-width:1px 0 0 1px; }
+    .panel::after { bottom:-1px;right:-1px;border-width:0 1px 1px 0; }
+    .panel-head { display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--line); padding:12px 15px; font-size:11px; letter-spacing:.12em; color:#b2e7ba; }
+    .panel-head .index { color:var(--dim); }
+    .terminal { min-height:304px; padding:15px; }
+    .log { min-height:225px; max-height:360px; overflow-y:auto; scrollbar-color:#285735 transparent; }
+    .line { margin:0 0 7px; color:#91d79e; overflow-wrap:anywhere; }
+    .line .stamp { color:#4c8358; margin-right:10px; }
+    .line .ok { color:var(--bright); }
+    .line .warn { color:var(--amber); }
+    .prompt-row { display:flex; align-items:center; gap:8px; border-top:1px solid rgba(91,255,125,.13); padding-top:11px; color:var(--bright); }
+    .cursor { display:inline-block; width:7px; height:15px; background:var(--bright); animation:blink 1s steps(2,start) infinite; vertical-align:middle; }
+    @keyframes blink { to { visibility:hidden; } }
+    .controls { margin-top:16px; }
+    .button-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; padding:14px; }
+    .button { min-height:78px; padding:12px 10px; text-align:left; }
+    .button .num { display:block; font-size:10px; color:var(--dim); letter-spacing:.12em; margin-bottom:7px; }
+    .button .label { font-size:12px; font-weight:700; letter-spacing:.015em; }
+    .button .sub { display:block; color:#779f7d; font-size:10px; margin-top:4px; }
+    .side-stack { display:grid; gap:16px; }
+    .status-body { padding:14px 15px; }
+    .status-row { display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px dashed rgba(91,255,125,.14);font-size:11px; }
+    .status-row:last-child { border:0; }
+    .status-row span:first-child { color:#6f9b77; }
+    .status-row span:last-child { color:#b5efbf; text-align:right; }
+    .meter-wrap { margin-top:12px; }
+    .meter-label { display:flex; justify-content:space-between; color:#77a77f; font-size:10px; margin-bottom:6px; }
+    .meter { height:6px; background:#102116; border:1px solid rgba(91,255,125,.2); }
+    .meter > span { display:block; width:0%; height:100%; background:var(--bright); box-shadow:0 0 10px rgba(85,255,121,.5); transition:width .12s linear; }
+    .game-body { padding:14px 15px 15px; }
+    .game-intro { color:#82ae89; font-size:11px; margin:0 0 12px; }
+    .cipher-box { border:1px dashed rgba(91,255,125,.28); padding:12px; text-align:center; margin-bottom:12px; }
+    .cipher-label { font-size:9px; color:#648e6c; letter-spacing:.16em; }
+    .cipher { color:#c1ffd0; font-size:23px; letter-spacing:.2em; margin-top:2px; }
+    .answer-row { display:flex; gap:7px; }
+    input { min-width:0; flex:1; color:var(--green); background:#060d08; border:1px solid var(--line); padding:10px; font:inherit; font-size:12px; text-transform:uppercase; }
+    input::placeholder { color:#56745b; text-transform:none; }
+    .small-btn { padding:8px 10px; font-size:10px; }
+    .game-actions { display:flex; gap:8px; margin-top:9px; }
+    .game-message { min-height:20px; margin:9px 0 0; font-size:10px; color:#94d99e; }
+    .game-message.error { color:#efb58d; }
+    .game-message.success { color:var(--bright); }
+    .hidden { display:none !important; }
+    .reveal-row { padding:13px 15px; display:flex; align-items:center; justify-content:space-between; gap:10px; }
+    .reveal-copy { color:#7ea985; font-size:10px; }
+    .footer { display:flex; justify-content:space-between; gap:14px; padding-top:20px; margin-top:18px; border-top:1px solid var(--line); color:#55765c; font-size:10px; }
+    .footer strong { color:#80ae87; font-weight:400; }
+    .sr-only { position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0; }
+    @media(max-width:760px) {
+      .layout { grid-template-columns:1fr; }
+      .side-stack { grid-template-columns:1fr 1fr; }
+      .shell { width:min(100% - 24px, 620px); padding-top:14px; }
+      header { padding:34px 0 22px; }
+    }
+    @media(max-width:520px) {
+      .topline { align-items:flex-start; font-size:9px; }
+      .topright { gap:9px; }
+      .audio-btn { padding:6px 7px; font-size:9px; }
+      .side-stack { grid-template-columns:1fr; }
+      .button-grid { grid-template-columns:1fr; gap:8px; }
+      .button { min-height:65px; }
+      .footer { flex-direction:column; }
+      .terminal { padding:12px; }
+    }
+    @media(prefers-reduced-motion:reduce) {
+      *,*::before,*::after { scroll-behavior:auto !important; animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important; }
+      #matrix { display:none; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="matrix" aria-hidden="true"></canvas>
+  <main class="shell">
+    <div class="topline">
+      <div class="credit">Created by Student #150096725155</div>
+      <div class="topright">
+        <span><i class="live-dot" aria-hidden="true"></i>SIMULATION MODE</span>
+        <button id="muteButton" class="audio-btn" type="button" aria-pressed="false" aria-label="Mute sound effects">SOUND: ON</button>
+      </div>
+    </div>
+    <header>
+      <div class="eyebrow">Field operations · training console 07</div>
+        <h1>SECRET AGENT<br><span>HACKER TERMINAL</span></h1>
+      <p class="subtitle">A cinematic command desk for your next imaginary mission. Choose an operation, watch the console come alive, and keep your cover intact.</p>
+      <div class="notice" role="note"><strong>TRAINING SIMULATION ONLY</strong> — This toy does not connect to networks, inspect files, or perform real hacking. Every readout and result is scripted fiction.</div>
+    </header>
+
+    <div class="layout">
+      <section aria-label="Fictional operation console">
+        <div class="panel">
+          <div class="panel-head"><span>MISSION CONSOLE</span><span class="index">SESSION / 00<span id="sessionNo">01</span></span></div>
+          <div class="terminal">
+            <div class="log" id="log" role="log" aria-live="polite" aria-relevant="additions text">
+              <p class="line"><span class="stamp">[08:14:02]</span><span class="ok">SECURE CHANNEL ESTABLISHED.</span></p>
+              <p class="line"><span class="stamp">[08:14:03]</span>Welcome, Agent. Your mission is make-believe; your imagination is cleared for launch.</p>
+              <p class="line"><span class="stamp">[08:14:04]</span>Awaiting a training operation<span class="cursor" aria-hidden="true"></span></p>
+            </div>
+            <div class="prompt-row" aria-hidden="true"><span>&gt;</span><span>READY FOR INPUT</span></div>
+          </div>
+        </div>
+        <div class="panel controls">
+          <div class="panel-head"><span>SELECT OPERATION</span><span class="index">LOCAL SIMULATION</span></div>
+          <div class="button-grid">
+            <button class="button operation" type="button" data-op="scan">
+              <span class="num">01 / RECON</span><span class="label">Scan Network</span><span class="sub">Simulate a fictional signal sweep</span>
+            </button>
+            <button class="button operation" type="button" data-op="decrypt">
+              <span class="num">02 / CIPHER</span><span class="label">Decrypt File</span><span class="sub">Reveal a scripted dossier fragment</span>
+            </button>
+            <button class="button operation" type="button" data-op="hack">
+              <span class="num">03 / INFILTRATE</span><span class="label">Initiate Hack</span><span class="sub">Run a harmless movie-style sequence</span>
+            </button>
+          </div>
+          <div class="status-body" style="padding-top:0">
+            <div class="meter-wrap">
+              <div class="meter-label"><span id="progressLabel">OPERATION PROGRESS</span><span id="progressValue">STANDBY</span></div>
+              <div class="meter" role="progressbar" aria-label="Simulation operation progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progressBar"><span id="progressFill"></span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="side-stack" aria-label="Agent tools">
+        <section class="panel">
+          <div class="panel-head"><span>FIELD STATUS</span><span class="index">LIVE</span></div>
+          <div class="status-body">
+            <div class="status-row"><span>Agent</span><span>UNIDENTIFIED</span></div>
+            <div class="status-row"><span>Cover</span><span id="coverState">INTACT</span></div>
+            <div class="status-row"><span>Threat level</span><span>PURELY THEATRICAL</span></div>
+            <div class="status-row"><span>Connection</span><span>NONE / OFFLINE</span></div>
+            <div class="meter-wrap">
+              <div class="meter-label"><span>IMAGINARY SIGNAL</span><span id="signalValue">0%</span></div>
+              <div class="meter" role="progressbar" aria-label="Imaginary signal strength" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="signalBar"><span id="signalFill"></span></div>
+            </div>
+          </div>
+        </section>
+        <section class="panel" id="cipherPanel">
+          <div class="panel-head"><span>POCKET CIPHER</span><span class="index">OPTIONAL GAME</span></div>
+          <div id="gameReveal" class="reveal-row">
+            <span class="reveal-copy">Crack a tiny Caesar-shift message.</span>
+            <button class="small-btn" id="revealGame" type="button" aria-expanded="false" aria-controls="gameBody">REVEAL GAME</button>
+          </div>
+          <div class="game-body hidden" id="gameBody">
+            <p class="game-intro">Shift each letter back by three places. Spaces stay put. Solve the secret word to clear the puzzle.</p>
+            <div class="cipher-box">
+              <div class="cipher-label">ENCRYPTED MESSAGE</div>
+              <div class="cipher" id="cipherText" aria-label="Encrypted message">FDW</div>
+            </div>
+            <form id="answerForm">
+              <label class="sr-only" for="answerInput">Your decoded answer</label>
+              <div class="answer-row"><input id="answerInput" type="text" autocomplete="off" spellcheck="false" maxlength="24" placeholder="Type your answer"><button class="small-btn" type="submit">CHECK</button></div>
+            </form>
+            <p class="game-message" id="gameMessage" aria-live="polite">Hint available when you need it.</p>
+            <div class="game-actions">
+              <button class="small-btn" id="hintButton" type="button">HINT</button>
+              <button class="small-btn" id="resetButton" type="button">RESET</button>
+              <button class="small-btn" id="newPuzzleButton" type="button">NEW PUZZLE</button>
+            </div>
+          </div>
+        </section>
+      </aside>
+    </div>
+    <footer class="footer">
+      <span><strong>FIELD//TERMINAL</strong> · A fiction-first agent training toy</span>
+      <span>No real scanning · No file access · No network activity</span>
+    </footer>
+  </main>
+  <script>
+    (() => {
+      "use strict";
+      const $ = (selector) => document.querySelector(selector);
+      const log = $("#log");
+      const buttons = [...document.querySelectorAll(".operation")];
+      const progressFill = $("#progressFill");
+      const progressValue = $("#progressValue");
+      const progressBar = $("#progressBar");
+      const signalFill = $("#signalFill");
+      const signalValue = $("#signalValue");
+      let operationTimer = null;
+      let locked = false;
+      let session = 1;
+      let muted = false;
+      let audioContext = null;
+
+      function stamp() {
+        const now = new Date();
+        return `[${now.toLocaleTimeString("en-GB", {hour12:false})}]`;
+      }
+      function writeLine(text, kind = "") {
+        const p = document.createElement("p");
+        p.className = "line";
+        const time = document.createElement("span");
+        time.className = "stamp";
+        time.textContent = stamp();
+        p.append(time, document.createTextNode(" "));
+        if (kind) {
+          const highlight = document.createElement("span");
+          highlight.className = kind;
+          highlight.textContent = text;
+          p.append(highlight);
+        } else p.append(document.createTextNode(text));
+        log.appendChild(p);
+        log.scrollTop = log.scrollHeight;
+      }
+      function beep(freq = 620, duration = .07, type = "square") {
+        if (muted) return;
+        try {
+          audioContext ||= new (window.AudioContext || window.webkitAudioContext)();
+          if (audioContext.state === "suspended") audioContext.resume();
+          const osc = audioContext.createOscillator();
+          const gain = audioContext.createGain();
+          osc.type = type;
+          osc.frequency.setValueAtTime(freq, audioContext.currentTime);
+          gain.gain.setValueAtTime(.035, audioContext.currentTime);
+          gain.gain.exponentialRampToValueAtTime(.001, audioContext.currentTime + duration);
+          osc.connect(gain); gain.connect(audioContext.destination);
+          osc.start(); osc.stop(audioContext.currentTime + duration);
+        } catch (_) { /* Audio is optional; the console works without it. */ }
+      }
+      const scripts = {
+        scan: {
+          label: "FICTIONAL SIGNAL SWEEP",
+          steps: ["Calibrating imaginary antenna array...", "Sweeping the entirely fictional sector 7-G...", "Sorting pretend pings from cinematic static...", "No actual network was contacted."],
+          result: "SIMULATION COMPLETE: 3 imaginary signal dots found. None represent real devices."
+        },
+        decrypt: {
+          label: "SCRIPTED DOSSIER DECODE",
+          steps: ["Loading sample cipher from the training scenario...", "Applying a pretend key rotation...", "Reassembling fictional dossier fragments...", "No files were opened or read."],
+          result: "DECODED: “The owl delivers the midnight croissant.” Dossier status: delightfully classified."
+        },
+        hack: {
+          label: "MOVIE-STYLE ACCESS SEQUENCE",
+          steps: ["Starting harmless cinematic sequence...", "Animating pretend access matrix...", "Generating fictional clearance token...", "No systems were accessed or changed."],
+          result: "MISSION COMPLETE: Training door opens in the story. Your real-world devices remain untouched."
+        }
+      };
+      function setProgress(value) {
+        progressFill.style.width = `${value}%`;
+        progressValue.textContent = `${value}%`;
+        progressBar.setAttribute("aria-valuenow", String(value));
+      }
+      function runOperation(type) {
+        if (locked) return;
+        locked = true;
+        buttons.forEach(button => button.disabled = true);
+        const script = scripts[type];
+        $("#progressLabel").textContent = script.label;
+        $("#coverState").textContent = "ON A STORY BREAK";
+        writeLine(`> ${script.label}`, "ok");
+        setProgress(0);
+        signalFill.style.width = "0%";
+        signalValue.textContent = "0%";
+        let progress = 0;
+        let lineIndex = -1;
+        clearInterval(operationTimer);
+        operationTimer = setInterval(() => {
+          progress = Math.min(100, progress + 4 + Math.floor(Math.random() * 8));
+          setProgress(progress);
+          signalFill.style.width = `${Math.min(100, Math.round(progress * (.72 + Math.random() * .25)))}%`;
+          signalValue.textContent = `${Math.round(progress * .83)}%`;
+          if (progress >= (lineIndex + 1) * 24 && lineIndex < script.steps.length - 1) {
+            lineIndex++;
+            writeLine(script.steps[lineIndex]);
+            beep(420 + lineIndex * 95, .055);
+          }
+          if (progress >= 100) {
+            clearInterval(operationTimer);
+            writeLine(script.result, "ok");
+            writeLine("SIMULATION ONLY — no real-world action taken.", "warn");
+            beep(790, .12, "triangle");
+            $("#coverState").textContent = "INTACT";
+            buttons.forEach(button => button.disabled = false);
+            locked = false;
+            session++;
+            $("#sessionNo").textContent = String(session).padStart(2, "0");
+          }
+        }, 160);
+      }
+      buttons.forEach(button => button.addEventListener("click", () => runOperation(button.dataset.op)));
+
+      $("#muteButton").addEventListener("click", (event) => {
+        muted = !muted;
+        event.currentTarget.textContent = muted ? "SOUND: OFF" : "SOUND: ON";
+        event.currentTarget.setAttribute("aria-pressed", String(muted));
+        event.currentTarget.setAttribute("aria-label", muted ? "Turn sound effects on" : "Mute sound effects");
+        if (!muted) beep(660, .08);
+      });
+
+      const puzzles = [
+        {cipher:"FDW", answer:"CAT", hint:"A small feline agent."},
+        {cipher:"GRJ", answer:"DOG", hint:"A loyal four-legged friend."},
+        {cipher:"VHFUHW", answer:"SECRET", hint:"The opposite of public."},
+        {cipher:"ROLYH", answer:"OLIVE", hint:"A classic spy disguise might be this color."},
+        {cipher:"DJHQW", answer:"AGENT", hint:"Your official role in this console."},
+        {cipher:"PLVVLRQ", answer:"MISSION", hint:"The assignment every agent receives."}
+      ];
+      let puzzleIndex = 0;
+      let hintShown = false;
+      const gameBody = $("#gameBody");
+      const reveal = $("#revealGame");
+      const answerInput = $("#answerInput");
+      const message = $("#gameMessage");
+      function setMessage(text, state = "") {
+        message.textContent = text;
+        message.className = `game-message ${state}`.trim();
+      }
+      function loadPuzzle(index) {
+        puzzleIndex = index;
+        $("#cipherText").textContent = puzzles[puzzleIndex].cipher;
+        answerInput.value = "";
+        hintShown = false;
+        setMessage("Hint available when you need it.");
+      }
+      reveal.addEventListener("click", () => {
+        const open = gameBody.classList.contains("hidden");
+        gameBody.classList.toggle("hidden", !open);
+        reveal.setAttribute("aria-expanded", String(open));
+        reveal.textContent = open ? "HIDE GAME" : "REVEAL GAME";
+        if (open) answerInput.focus();
+      });
+      $("#answerForm").addEventListener("submit", (event) => {
+        event.preventDefault();
+        const answer = answerInput.value.trim().toUpperCase();
+        if (!answer) { setMessage("Enter a guess before checking.", "error"); answerInput.focus(); return; }
+        if (answer === puzzles[puzzleIndex].answer) {
+          setMessage("Correct. Cipher cleared. Excellent field work.", "success");
+          beep(740, .12, "triangle");
+        } else {
+          setMessage("Not quite. Check the shift direction and try again.", "error");
+          beep(260, .08);
+        }
+      });
+      $("#hintButton").addEventListener("click", () => {
+        const puzzle = puzzles[puzzleIndex];
+        setMessage(hintShown ? `Hint: ${puzzle.hint}` : `Hint: ${puzzle.hint} The answer has ${puzzle.answer.length} letters.`, "");
+        hintShown = true;
+      });
+      $("#resetButton").addEventListener("click", () => {
+        answerInput.value = "";
+        hintShown = false;
+        setMessage("Answer cleared. The same cipher is ready.");
+        answerInput.focus();
+      });
+      $("#newPuzzleButton").addEventListener("click", () => {
+        let next = puzzleIndex;
+        while (puzzles.length > 1 && next === puzzleIndex) next = Math.floor(Math.random() * puzzles.length);
+        loadPuzzle(next);
+        setMessage("A new training cipher is ready.");
+        answerInput.focus();
+      });
+
+      // Decorative, local canvas animation. It never reads or sends data.
+      const canvas = $("#matrix");
+      const ctx = canvas.getContext("2d");
+      const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+      let drops = [];
+      const glyphs = "01アイウエオカキクケコサシスセソ";
+      function resizeCanvas() {
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        canvas.width = Math.floor(window.innerWidth * dpr);
+        canvas.height = Math.floor(window.innerHeight * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        const columns = Math.ceil(window.innerWidth / 18);
+        drops = Array.from({length:columns}, () => Math.random() * window.innerHeight / 18);
+      }
+       let frame = 0;
+       let animationFrameId = 0;
+      function drawMatrix() {
+        if (reducedMotion.matches) return;
+         animationFrameId = requestAnimationFrame(drawMatrix);
+        if (++frame % 2) return;
+        ctx.fillStyle = "rgba(5, 9, 7, .12)";
+        ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
+        ctx.font = "12px monospace";
+        ctx.fillStyle = "#55ff79";
+        for (let i = 0; i < drops.length; i++) {
+          const char = glyphs[Math.floor(Math.random() * glyphs.length)];
+          ctx.fillText(char, i * 18, drops[i] * 18);
+          if (drops[i] * 18 > window.innerHeight && Math.random() > .975) drops[i] = 0;
+          drops[i] += .35 + Math.random() * .5;
+        }
+      }
+      resizeCanvas();
+      if (!reducedMotion.matches) drawMatrix();
+      window.addEventListener("resize", resizeCanvas, {passive:true});
+      reducedMotion.addEventListener?.("change", () => {
+         if (reducedMotion.matches) { cancelAnimationFrame(animationFrameId); ctx.clearRect(0,0,canvas.width,canvas.height); }
+        else drawMatrix();
+      });
+    })();
+  </script>
+</body>
+</html>
